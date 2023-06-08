@@ -8,7 +8,7 @@ const route = require("./routes/route.js")
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // connecting to the mongodb
-mongoose.connect('mongodb+srv://rkpandeyisin2015:B54DrIXCMjAsvffT@cluster1.3i5fv9s.mongodb.net/url_DB', { useNewUrlParser: true })
+mongoose.connect('mongodb+srv://rkpandeyisin2015:y2dVdOyOQoiPDYLp@cluster0.k1qw7ec.mongodb.net/url_DB', { useNewUrlParser: true })
     .then(() => console.log("MongoDb connected"))
     .catch(err => console.log(err))
 app.use('/', route)
