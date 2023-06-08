@@ -16,7 +16,23 @@ const axios = require('axios');
 // Importing util for promisify
 const { promisify } = require('util');
 
+// Connecting to Redis
+const redisClient = redis.createClient(16998, 'redis-16998.c301.ap-south-1-1.ec2.cloud.redislabs.com', { no_ready_check: true });
+redisClient.auth("eOFzYQ90aSkfKUu1FiGwDsybdSU8uF23", function (err) {
+    if (err) throw err;
+});
+redisClient.on("connect", async function () {
+    console.log("Connected to Redis");
+});
 
+const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
+const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
+
+const isValid = (a) => {
+    if (typeof a === "undefined" || typeof a === "null") return false;
+    if (typeof a === "string" && a.trim().length === 0) return false;
+    return true;
+};
 
 let createUrl = async (req, res) => {
     try {
@@ -40,6 +56,21 @@ let createUrl = async (req, res) => {
             return res.status(400).send({ status: false, message: "Please enter a valid long URL." });
         }
 
+        try {
+            const validLongUrl = await axios.get(longUrl);
+            if (!(validLongUrl.status >= 200 || validLongUrl.status < 400)) {
+                return res.status(400).send({ status: false, message: "Please enter an active URL." });
+            }
+        } catch (error) {
+            return res.status(400).send({ status: false, message: error.message });
+        }
+
+        let cachedUrl = await GET_ASYNC(`${longUrl}`);
+        let getUrl = JSON.parse(cachedUrl);
+
+        if (cachedUrl) {
+            return res.status(200).send({ status: true, data: getUrl });
+        }
 
         // Checking the duplicacy of the URL
         let urlCheck = await urlModel.findOne({ longUrl: data.longUrl }).select({ _id: 0, longUrl: 1, shortUrl: 1, urlCode: 1 });
@@ -80,6 +111,11 @@ const redirectUrl = async function (req, res) {
             return res.status(400).send({ status: false, message: "Please enter a valid URL." });
         }
 
+        // Finding the redirected resource URL
+        const dataFromRedis = await GET_ASYNC(url);
+        if (dataFromRedis) {
+            return res.redirect(JSON.parse(dataFromRedis));
+        } else {
             const redirectedUrl = await urlModel.findOne({ urlCode: url });
 
             // If resource is not available
@@ -90,11 +126,11 @@ const redirectUrl = async function (req, res) {
             // If resource is available
             await SET_ASYNC(url, JSON.stringify(redirectedUrl.longUrl), 'EX', 86400);
             res.redirect(redirectedUrl.longUrl);
-        
+        }
     } catch (error) {
         res.status(500).send({ status: false, message: error.message });
     }
+};
 
-}
 // Exporting modules to access them in other files
 module.exports = { createUrl, redirectUrl };
